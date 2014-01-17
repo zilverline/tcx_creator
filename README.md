@@ -1,0 +1,1 @@
+RUN ./main.rb input.hrm
