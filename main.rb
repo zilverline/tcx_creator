@@ -4,6 +4,7 @@ require 'rational'
 require 'builder'
 
 
+
 class Array
   def average
     self.reduce(:+).to_f/self.length
@@ -42,17 +43,28 @@ def parse_hrm(filename)
       elsif line.match(/Length=(\d{2}:\d{2}:\d{2}.\d+)/)
         #Length=00:56:23.10
         meta_data[:exercise_length] = $1
+      elsif line.match(/Interval=(\d+)/)
+        #Interval=1
+        meta_data[:interval] = $1.to_i
+      elsif line.match(/SMode=([0|1]+)/)
+        #SMode=11111110
+        meta_data[:speed] = ($1[0].to_i == 1)
+        meta_data[:cadence] = ($1[1].to_i == 1)
+        meta_data[:altitude] = ($1[2].to_i == 1)
+        meta_data[:power] = ($1[3].to_i == 1)
+        meta_data[:euro] = ($1[7].to_i == 0)
       end
     elsif last_block == "HRData" && line.strip.length > 0
+      print '.'
       line_data = line.split(' ')
       hr_line = {}
       hr_line[:hr] = line_data[0].to_i
-      hr_line[:speed] = line_data[1].to_i/10.0
-      hr_line[:distance] = distance + hr_line[:speed] * 1000 / 60 / 60
+      hr_line[:speed] = line_data[1].to_f/10
+      hr_line[:distance] = distance + hr_line[:speed] * 1000 / 60 / 60 * meta_data[:interval]
       distance = hr_line[:distance]
-      hr_line[:cadence] = line_data[2].to_i
+      hr_line[:cadence] = line_data[2].to_i if meta_data[:cadence]
       hr_line[:altitude] = line_data[3].to_i
-      hr_line[:power] = line_data[4].to_i
+      hr_line[:power] = line_data[4].to_i  if meta_data[:power]
       hr_line[:time] = meta_data[:start]+ Rational(index, 24*60*60)
       hrm_data << hr_line
     else
@@ -62,21 +74,22 @@ def parse_hrm(filename)
   return hrm_data, meta_data
 end
 
-def out_range(val, array)
-  hr_average = array.average
+def out_range(val, average)
   variation = 0.4
-  lower_bound = hr_average*(1-variation)
-  upper_bound = hr_average*(1+variation)
+  lower_bound = average*(1-variation)
+  upper_bound = average*(1+variation)
   val < lower_bound || val > upper_bound
 end
 
 def fix_heart_rate(hrm_data)
   hr_data = hrm_data.map { |m| m[:hr] }
+  average = hr_data.average
   hrm_data.each_with_index do |hrm_point, index|
-    if out_range(hrm_point[:hr], hr_data)
+    if out_range(hrm_point[:hr], average)
+      print '+'
       if index > 0 && index < hrm_data.length-1
         scan = index+1
-        while out_range(hrm_data[scan][:hr], hr_data) && scan < (hrm_data.length-1)
+        while out_range(hrm_data[scan][:hr], average) && scan < (hrm_data.length-1)
           scan += 1
         end
         hrm_point[:hr] = (hrm_data[index-1][:hr] + hrm_data[scan][:hr])/2
@@ -125,10 +138,16 @@ def generate_tcx(meta_data, hrm_data)
   buffer
 end
 
-filename = ARGV.first
-hrm_data, meta_data = parse_hrm(filename)
-hrm_data = fix_heart_rate(hrm_data)
-output_file = filename.gsub(/\.hrm/, '.tcx')
-target = File.open(output_file, 'w')
-target << generate_tcx(meta_data, hrm_data)
-target.close
+filenames = ARGV.each
+filenames.each do |filename|
+  output_file = filename.gsub(/\.hrm/, '.tcx')
+  puts "creating #{output_file} based on #{filename}"
+  hrm_data, meta_data = parse_hrm(filename)
+  p meta_data
+  hrm_data = fix_heart_rate(hrm_data)
+  target = File.open(output_file, 'w')
+  target << generate_tcx(meta_data, hrm_data)
+  target.close
+  puts ''
+  puts "done processing #{hrm_data.length} points"
+end
