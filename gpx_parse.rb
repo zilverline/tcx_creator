@@ -20,6 +20,7 @@ def parse_gpx(filename)
     {lat_long: Geokit::LatLng.new(tp.xpath("@lat").first.value, tp.xpath("@lon").first.value), alt: tp.xpath("ele").first.content.to_f}
   }
 end
+
 def initialize_stats(gpx_data)
   stats = {}
   stats[:gpx_points] = gpx_data.length
@@ -31,8 +32,8 @@ def initialize_stats(gpx_data)
   stats[:highest_elevation] = gpx_data.map { |tp| tp[:alt] }.max
   stats[:average_elevation] = gpx_data.map { |tp| tp[:alt] }.average
   stats[:total_distance]= 0.0
-  stats[:ascent]= 0.0
-  stats[:descent]= 0.0
+  stats[:total_ascent]= 0.0
+  stats[:total_descent]= 0.0
   stats
 end
 
@@ -56,20 +57,16 @@ filenames.each do |filename|
   gradients = []
   gpx_data[0..-2].each_with_index do |gpx_point, index|
     distance, climb = stats_from_point(gpx_data, index)
-    unless distance == 0.0
-      gradient = Math.atan(climb/distance)/Math::PI*4*45
-      gradients << gradient
-    else
-      gradients << 0
-    end
-    stats[:ascent] += climb if climb >0
-    stats[:descent] += -climb if climb <0
+    gradients << (distance == 0.0 ? 0 : Math.atan(climb/distance)/Math::PI*4*45)
+    stats[:total_ascent] += climb if climb >0
+    stats[:total_descent] += -climb if climb <0
     stats[:total_distance] += distance
     distances << distance
   end
   stats[:min_gradient] = gradients.min
   stats[:max_gradient] = gradients.max
-  stats[:steepest_point] = gradients.find_index(stats[:max_gradient])
+  stats[:steepest_point_up] = gradients.find_index(stats[:max_gradient])
+  stats[:steepest_point_down] = gradients.find_index(stats[:min_gradient])
   stats[:average_climbing_gradient] = gradients.select { |g| g > 0.0 }.average
   stats[:average_descending_gradient] = gradients.select { |g| g < 0.0 }.average
   p stats
