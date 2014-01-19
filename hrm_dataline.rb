@@ -1,5 +1,5 @@
 class HRM_DataLine
-  attr_accessor :hr, :speed, :distance, :cadence, :altitude, :power, :time
+  attr_accessor :hr, :speed, :distance, :cadence, :altitude, :power, :time, :tick
   DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
   def generate_tcx(xml)

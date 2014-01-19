@@ -9,7 +9,7 @@ class HRM_Recording
 
   DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-  def fix_heart_rate
+  def fix_heart_rate!
     hr_data = hrm_data.map { |m| m.hr }
     average = hr_data.average
     hrm_data.each_with_index do |hrm_point, index|
@@ -31,21 +31,23 @@ class HRM_Recording
     hrm_data = []
     hrm_recording = HRM_Recording.new
     last_block = ''
-    block_line = 0
+    trip_line = 0
     start_date = ''
     distance = 0
+    index_offset = 0
     arr.each_with_index do |line, index|
       if line.match(/\[(.*)\]/)
         last_block = $1
+        index_offset = index+1
       elsif last_block == "Trip" && line.strip.length > 0
-        hrm_recording.distance = line.strip.to_f*100 if block_line == 0
-        hrm_recording.ascent= line.strip.to_i if block_line == 1
-        hrm_recording.total_time = line.strip.to_i if block_line == 2
-        hrm_recording.average_altitude = line.strip.to_i if block_line == 3
-        hrm_recording.max_altitude = line.strip.to_i if block_line == 4
-        hrm_recording.average_speed = line.strip.to_f/128 if block_line == 5
-        hrm_recording.max_speed = line.strip.to_f/128 if block_line == 6
-        block_line += 1
+        hrm_recording.distance = line.strip.to_f*100 if trip_line == 0
+        hrm_recording.ascent= line.strip.to_i if trip_line == 1
+        hrm_recording.total_time = line.strip.to_i if trip_line == 2
+        hrm_recording.average_altitude = line.strip.to_i if trip_line == 3
+        hrm_recording.max_altitude = line.strip.to_i if trip_line == 4
+        hrm_recording.average_speed = line.strip.to_f/128 if trip_line == 5
+        hrm_recording.max_speed = line.strip.to_f/128 if trip_line == 6
+        trip_line += 1
       elsif last_block == "Params" && line.strip.length > 0
         if line.match(/Date=(\d{8})/)
           #Date=20131225
@@ -80,7 +82,8 @@ class HRM_Recording
         hrm_dataline.cadence = line_data[2].to_i if hrm_recording.has_cadence
         hrm_dataline.altitude = line_data[3].to_i
         hrm_dataline.power = line_data[4].to_i if hrm_recording.has_power
-        hrm_dataline.time = hrm_recording.start+ Rational(index, 24*60*60)
+        hrm_dataline.tick = index - index_offset
+        hrm_dataline.time = hrm_recording.start+ Rational(hrm_dataline.tick, 24*60*60)
         hrm_data << hrm_dataline
       else
         #puts line if line.strip.length > 0
@@ -117,7 +120,7 @@ class HRM_Recording
   end
 
   def stats_report
-    "#{hrm_data.length} lines parsed, started at #{start.strftime("%a %F %R, %Z")}: #{distance/1000}km for a duration of #{exercise_length} (#{total_time}seconds) Average Speed: #{average_speed.round(2)}km/h Max Speed: #{max_speed.round(2)}km/h. Ascent: #{ascent}, Average Altitude: #{average_altitude}, Max Altitude: #{max_altitude}."
+    "#{hrm_data.length} measurements parsed, TRAINING started at #{start.strftime("%a %F %R, %Z")}: #{distance/1000}km for a duration of #{exercise_length} (#{total_time}seconds) Average Speed: #{average_speed.round(2)}km/h Max Speed: #{max_speed.round(2)}km/h. Ascent: #{ascent}, Average Altitude: #{average_altitude}, Max Altitude: #{max_altitude}."
   end
 
   private
